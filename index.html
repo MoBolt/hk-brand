@@ -1279,9 +1279,17 @@ document.querySelectorAll('a,button').forEach(btn=>{
   }
 });
 if(nlSubmit){
-  nlSubmit.addEventListener('click',()=>{
+  nlSubmit.addEventListener('click', async ()=>{
     const emailEl=document.getElementById('nl-email');
     if(emailEl && emailEl.value){
+      try{
+        await fetch('/api/newsletter', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email: emailEl.value })
+        });
+      }catch(err){ console.error('Erreur newsletter:', err); }
+
       const form=document.getElementById('nl-form');
       const succ=document.getElementById('nl-success');
       if(form) form.style.display='none';
@@ -1594,53 +1602,106 @@ async function stripePayment() {
   const ville = document.getElementById('c-ville').value;
   const cp = document.getElementById('c-cp').value;
 
-  const result = await stripe.createPaymentMethod({
-    type: 'card',
-    card: stripeCardElement,
-    billing_details: {
-      name: prenom + ' ' + nom,
-      email: email,
-      address: {
-        line1: adresse,
-        city: ville,
-        postal_code: cp,
-        country: 'CA'
+  // Recalcule le total exact (même logique que calcShipping)
+  const zObj = SHIPPING_ZONES[zone];
+  const tObj = TAX_RATES[zone];
+  const subtotalAfterDiscount = Math.max(0, currentSubtotal - discountAmount);
+  const tps = Math.round(subtotalAfterDiscount * tObj.tps * 100) / 100;
+  const provincial = Math.round(subtotalAfterDiscount * (tObj.provincial || 0) * 100) / 100;
+  const totalAmount = subtotalAfterDiscount + zObj.price + tps + provincial;
+
+  try {
+    // 1. Créer le PaymentIntent côté serveur (montant validé server-side)
+    const piRes = await fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: totalAmount, email })
+    });
+    const piData = await piRes.json();
+    if (piData.error) throw new Error(piData.error);
+
+    // 2. Confirmer le paiement avec la carte (le vrai débit se passe ici)
+    const result = await stripe.confirmCardPayment(piData.clientSecret, {
+      payment_method: {
+        card: stripeCardElement,
+        billing_details: {
+          name: prenom + ' ' + nom,
+          email: email,
+          address: { line1: adresse, city: ville, postal_code: cp, country: 'CA' }
+        }
       }
-    }
-  });
+    });
 
-  if(result.error) {
-    const errEl = document.getElementById('stripe-error');
-    errEl.textContent = result.error.message;
-    errEl.style.display = 'block';
-    btn.disabled = false;
-    btnText.style.display = 'inline';
-    btnLoading.style.display = 'none';
-    return;
-  }
-
-  // Payment method created successfully - show success
-  // In production, you would send result.paymentMethod.id to your backend
-  const content = document.getElementById('checkout-content');
-  const success = document.getElementById('checkout-success');
-  if(content) content.style.display = 'none';
-  if(success) success.style.display = 'block';
-  
-  // Clear cart
-  document.querySelectorAll('.cart-item').forEach(i => i.remove());
-  recalcCart();
-
-  setTimeout(() => {
-    const checkoutOverlay = document.getElementById('checkout-overlay');
-    if(checkoutOverlay) checkoutOverlay.classList.remove('open');
-    setTimeout(() => {
-      if(content) content.style.display = 'block';
-      if(success) success.style.display = 'none';
+    if (result.error) {
+      const errEl = document.getElementById('stripe-error');
+      errEl.textContent = result.error.message;
+      errEl.style.display = 'block';
       btn.disabled = false;
       btnText.style.display = 'inline';
       btnLoading.style.display = 'none';
-    }, 500);
-  }, 4000);
+      return;
+    }
+
+    if (result.paymentIntent.status !== 'succeeded') {
+      throw new Error('Paiement non confirmé (statut: ' + result.paymentIntent.status + ')');
+    }
+
+    // 3. Paiement réellement réussi — on enregistre la commande dans Supabase
+    const items = (window.cartData || []).map(i => ({ name: i.name, price: i.price, color: i.color }));
+    const promoInput = document.getElementById('promo-input');
+
+    await fetch('/api/confirm-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentIntentId: result.paymentIntent.id,
+        customerEmail: email,
+        customerName: prenom + ' ' + nom,
+        shippingAddress: { adresse, ville, cp, province: zone },
+        items,
+        subtotal: currentSubtotal,
+        shippingCost: zObj.price,
+        taxAmount: tps + provincial,
+        total: totalAmount,
+        promoCode: appliedPromo && promoInput ? promoInput.value : null,
+        province: zone
+      })
+    });
+
+    // Affiche le succès
+    const content = document.getElementById('checkout-content');
+    const success = document.getElementById('checkout-success');
+    if(content) content.style.display = 'none';
+    if(success) success.style.display = 'block';
+
+    // Clear cart
+    document.querySelectorAll('.cart-item').forEach(i => i.remove());
+    recalcCart();
+    window.cartData = [];
+
+    setTimeout(() => {
+      const checkoutOverlay = document.getElementById('checkout-overlay');
+      if(checkoutOverlay) checkoutOverlay.classList.remove('open');
+      setTimeout(() => {
+        if(content) content.style.display = 'block';
+        if(success) success.style.display = 'none';
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+      }, 500);
+    }, 4000);
+
+  } catch (err) {
+    console.error('Erreur paiement:', err);
+    const errEl = document.getElementById('stripe-error');
+    if (errEl) {
+      errEl.textContent = 'Une erreur est survenue: ' + err.message;
+      errEl.style.display = 'block';
+    }
+    btn.disabled = false;
+    btnText.style.display = 'inline';
+    btnLoading.style.display = 'none';
+  }
 }
 
 function confirmPayment() { stripePayment(); }
