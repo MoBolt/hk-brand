@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HK Brand — Admin Newsletter</title>
+<style>
+  body {
+    font-family: 'Inter', Arial, sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    max-width: 700px;
+    margin: 60px auto;
+    padding: 0 20px;
+  }
+  h1 { font-size: 1.8rem; margin-bottom: 30px; }
+  label { display: block; margin-top: 20px; margin-bottom: 6px; font-size: 0.9rem; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+  input, textarea {
+    width: 100%;
+    padding: 12px;
+    background: #111;
+    border: 1px solid #333;
+    color: #fff;
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  textarea { min-height: 250px; resize: vertical; }
+  button {
+    margin-top: 25px;
+    padding: 14px 28px;
+    background: #fff;
+    color: #000;
+    border: none;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+  }
+  button:hover { background: #ccc; }
+  button:disabled { background: #555; cursor: not-allowed; }
+  #status { margin-top: 20px; padding: 12px; display: none; }
+  #status.success { background: #1a3a1a; color: #7f7; display: block; }
+  #status.error { background: #3a1a1a; color: #f77; display: block; }
+  #login-box { max-width: 400px; margin: 100px auto; }
+</style>
+</head>
+<body>
+
+<div id="login-box">
+  <h1>Accès Admin</h1>
+  <label>Mot de passe</label>
+  <input type="password" id="password-input">
+  <button onclick="checkPassword()">Entrer</button>
+</div>
+
+<div id="admin-panel" style="display:none;">
+  <h1>Envoyer une Newsletter</h1>
+
+  <label>Sujet de l'email</label>
+  <input type="text" id="subject" placeholder="Ex: Nouvelle collection disponible !">
+
+  <label>Contenu (HTML autorisé)</label>
+  <textarea id="content" placeholder="Écris ton message ici... Tu peux utiliser du HTML basique comme <b>gras</b>, <a href='...'>liens</a>, etc."></textarea>
+
+  <button onclick="sendNewsletter()" id="send-btn">Envoyer à tous les abonnés</button>
+
+  <div id="status"></div>
+</div>
+
+<script>
+  let adminPassword = '';
+
+  function checkPassword() {
+    const input = document.getElementById('password-input').value;
+    adminPassword = input;
+    document.getElementById('login-box').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+  }
+
+  async function sendNewsletter() {
+    const subject = document.getElementById('subject').value.trim();
+    const content = document.getElementById('content').value.trim();
+    const statusEl = document.getElementById('status');
+    const btn = document.getElementById('send-btn');
+
+    if (!subject || !content) {
+      statusEl.className = 'error';
+      statusEl.textContent = 'Merci de remplir le sujet et le contenu.';
+      return;
+    }
+
+    if (!confirm('Envoyer cette newsletter à tous les abonnés ?')) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Envoi en cours...';
+    statusEl.style.display = 'none';
+
+    try {
+      const res = await fetch('/api/send-newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPassword,
+          subject,
+          htmlContent: content
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
+
+      statusEl.className = 'success';
+      statusEl.textContent = `✅ Newsletter envoyée à ${data.sent} abonné(s) !`;
+      document.getElementById('subject').value = '';
+      document.getElementById('content').value = '';
+    } catch (err) {
+      statusEl.className = 'error';
+      statusEl.textContent = '❌ Erreur : ' + err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Envoyer à tous les abonnés';
+    }
+  }
+</script>
+
+</body>
+</html>
