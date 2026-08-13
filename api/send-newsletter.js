@@ -1,6 +1,4 @@
 // /api/send-newsletter.js
-// Récupère tous les abonnés actifs dans Supabase et leur envoie un email via Resend
-
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseAdmin = createClient(
@@ -17,7 +15,6 @@ module.exports = async (req, res) => {
   try {
     const { adminPassword, subject, htmlContent } = req.body;
 
-    // Protection simple par mot de passe
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
       return res.status(401).json({ error: 'Mot de passe incorrect' });
     }
@@ -26,7 +23,6 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Sujet et contenu requis' });
     }
 
-    // Récupère tous les abonnés actifs
     const { data: subscribers, error: fetchError } = await supabaseAdmin
       .from('newsletter_subscribers')
       .select('email')
@@ -38,15 +34,11 @@ module.exports = async (req, res) => {
       return res.status(200).json({ message: 'Aucun abonné trouvé', sent: 0 });
     }
 
-    const emails = subscribers.map(s => s.email);
+    let sentCount = 0;
+    let errors = [];
 
-    // Envoie via Resend (max 50 destinataires par appel, on découpe si besoin)
-    const batchSize = 50;
-    let totalSent = 0;
-
-    for (let i = 0; i < emails.length; i += batchSize) {
-      const batch = emails.slice(i, i + batchSize);
-
+    // Envoie un email individuel à chaque abonné (plus fiable sur domaine de test)
+    for (const sub of subscribers) {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -55,22 +47,21 @@ module.exports = async (req, res) => {
         },
         body: JSON.stringify({
           from: 'HK Brand <onboarding@resend.dev>',
-          to: 'delivered@resend.dev', // destinataire technique requis par Resend
-          bcc: batch, // vrais destinataires en copie cachée (protège leur vie privée)
+          to: sub.email,
           subject: subject,
           html: htmlContent
         })
       });
 
-      if (!response.ok) {
+      if (response.ok) {
+        sentCount++;
+      } else {
         const errData = await response.json();
-        throw new Error(errData.message || 'Erreur Resend');
+        errors.push({ email: sub.email, error: errData.message });
       }
-
-      totalSent += batch.length;
     }
 
-    res.status(200).json({ success: true, sent: totalSent });
+    res.status(200).json({ success: true, sent: sentCount, errors });
   } catch (err) {
     console.error('Erreur envoi newsletter:', err);
     res.status(500).json({ error: err.message });
