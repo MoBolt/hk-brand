@@ -1539,7 +1539,7 @@ let stripeCardElement = null;
 function initStripe() {
   if(stripe) return;
   if(typeof Stripe === 'undefined') { console.log('Stripe not loaded'); return; }
-  stripe = Stripe('pk_test_51RsWl5EqJ7j02e7lVc9FFIho6VINOKUFgkDSUYE35dFc2ah11L23g4CiXfRL9XlquuXAWwSAbuAZ3JQSf1h7HrIX00Rgt26Asy');
+  stripe = Stripe('pk_live_51RsWl5EqJ7j02e7lrvqMl9Gw4rc39Qs64uqjjmlELrx7hrqVnJGNDkBUVWC21mX5O4d3yGTk4fsFlX7X2cQEJC8f00QOYxlEUn');
   stripeElements = stripe.elements({
     fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap' }]
   });
