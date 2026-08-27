@@ -67,7 +67,7 @@ module.exports = async (req, res) => {
     }
 
     if (promoCode) {
-      await supabaseAdmin.from('promo_code_usage').insert({
+      await supabaseAdmin.from('promo_code_uses').insert({
         code: promoCode,
         customer_email: customerEmail,
         order_id: data.id
