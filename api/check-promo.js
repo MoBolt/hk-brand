@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
     if (!code || !email) return res.status(400).json({ error: 'Code et email requis' });
 
     const { data, error } = await supabaseAdmin
-      .from('promo_code_usage')
+      .from('promo_code_uses')
       .select('id')
       .eq('code', code)
       .eq('customer_email', email)
