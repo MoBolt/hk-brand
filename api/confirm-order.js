@@ -25,7 +25,6 @@ module.exports = async (req, res) => {
       items,
       subtotal,
       shippingCost,
-      taxAmount,
       total,
       promoCode,
       province
@@ -51,7 +50,7 @@ module.exports = async (req, res) => {
         items,
         subtotal,
         shipping_cost: shippingCost,
-        tax_amount: taxAmount,
+        tax_amount: 0,
         total,
         promo_code: promoCode || null,
         province
@@ -97,7 +96,6 @@ module.exports = async (req, res) => {
               <ul>${itemsList}</ul>
               <p><strong>Sous-total :</strong> ${subtotal} CAD<br>
               <strong>Livraison :</strong> ${shippingCost} CAD<br>
-              <strong>Taxes :</strong> ${taxAmount} CAD<br>
               <strong>Total :</strong> ${total} CAD</p>
               <p><strong>Adresse de livraison :</strong><br>${shippingAddress}</p>
               <p style="margin-top: 30px; font-style: italic;">Calm. Conscious. Connected.</p>
