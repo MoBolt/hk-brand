@@ -76,7 +76,7 @@ module.exports = async (req, res) => {
     // Envoie l'email de confirmation au client (ne bloque pas la commande si ça échoue)
     try {
       const itemsList = Array.isArray(items)
-        ? items.map(i => `<li>${i.name || 'Article'} ${i.size ? '— ' + i.size : ''} x${i.quantity || 1}</li>`).join('')
+        ? items.map(i => `<li>${i.name || 'Article'}${i.color ? ' — ' + i.color : ''}${i.size ? ' — ' + i.size : ''} x${i.quantity || 1}</li>`).join('')
         : '';
 
       await fetch('https://api.resend.com/emails', {
@@ -97,7 +97,7 @@ module.exports = async (req, res) => {
               <p><strong>Sous-total :</strong> ${subtotal} CAD<br>
               <strong>Livraison :</strong> ${shippingCost} CAD<br>
               <strong>Total :</strong> ${total} CAD</p>
-              <p><strong>Adresse de livraison :</strong><br>${shippingAddress}</p>
+              <p><strong>Adresse de livraison :</strong><br>${shippingAddress && typeof shippingAddress === 'object' ? [shippingAddress.adresse, shippingAddress.ville, shippingAddress.province, shippingAddress.cp].filter(Boolean).join(', ') : (shippingAddress || '')}</p>
               <p style="margin-top: 30px; font-style: italic;">Calm. Conscious. Connected.</p>
               <p>— L'équipe HK Brand</p>
             </div>
