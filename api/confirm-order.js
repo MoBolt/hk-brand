@@ -40,6 +40,9 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Paiement non confirmé', status: paymentIntent.status });
     }
 
+    // Le total enregistré est celui réellement débité par Stripe (pas celui envoyé par le navigateur)
+    const confirmedTotal = paymentIntent.amount / 100;
+
     const { data, error } = await supabaseAdmin
       .from('orders')
       .insert({
@@ -51,7 +54,7 @@ module.exports = async (req, res) => {
         subtotal,
         shipping_cost: shippingCost,
         tax_amount: 0,
-        total,
+        total: confirmedTotal,
         promo_code: promoCode || null,
         province
       })
@@ -96,7 +99,7 @@ module.exports = async (req, res) => {
               <ul>${itemsList}</ul>
               <p><strong>Sous-total :</strong> ${subtotal} CAD<br>
               <strong>Livraison :</strong> ${shippingCost} CAD<br>
-              <strong>Total :</strong> ${total} CAD</p>
+              <strong>Total :</strong> ${confirmedTotal} CAD</p>
               <p><strong>Adresse de livraison :</strong><br>${shippingAddress && typeof shippingAddress === 'object' ? [shippingAddress.adresse, shippingAddress.ville, shippingAddress.province, shippingAddress.cp].filter(Boolean).join(', ') : (shippingAddress || '')}</p>
               <p style="margin-top: 30px; font-style: italic;">Calm. Conscious. Connected.</p>
               <p>— L'équipe HK Brand</p>
