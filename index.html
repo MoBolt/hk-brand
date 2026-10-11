@@ -1266,7 +1266,7 @@ function updateCartUI(){
 
   let subtotal=0;
   cart.forEach((item,i)=>{
-    subtotal+=parseInt(item.price);
+    subtotal+=parseFloat(item.price);
     const el=document.createElement('div');
     el.className='cart-item';
     el.innerHTML=`<div class="cart-item-info">
@@ -1443,7 +1443,7 @@ function addToCart(name, price){
       <p class="cart-item-detail">${color} · Taille ${size}</p>
     </div>
     <span class="cart-item-price">${price} CAD</span>
-    <button class="cart-item-remove" onclick="this.closest('.cart-item').remove();recalcCart()">✕</button>`;
+    <button class="cart-item-remove" onclick="removeCartItem(this)">✕</button>`;
     if(cartItemsEl) cartItemsEl.appendChild(el);
 
     recalcCart();
@@ -1459,7 +1459,7 @@ function recalcCart(){
   let subtotal=0;
   items.forEach(item=>{
     const priceEl=item.querySelector('.cart-item-price');
-    if(priceEl) subtotal+=parseInt(priceEl.textContent)||0;
+    if(priceEl) subtotal+=parseFloat(priceEl.textContent)||0;
   });
   const total = subtotal + 10;
   const subEl=document.getElementById('cart-subtotal');
@@ -1490,7 +1490,7 @@ function goCheckout(){
     const name=item.querySelector('.cart-item-name').textContent;
     const detail=item.querySelector('.cart-item-detail').textContent;
     const price=item.querySelector('.cart-item-price').textContent;
-    subtotal+=parseInt(price)||0;
+    subtotal+=parseFloat(price)||0;
     html+=`<div class="checkout-summary-item"><span>${name} — ${detail}</span><span>${price}</span></div>`;
   });
   if(summary) summary.innerHTML=html;
@@ -1630,6 +1630,29 @@ function initStripe(attempt) {
   });
 }
 
+// Retire un article du panier (affichage ET données) pour que ce qui est payé = ce qui est affiché
+function removeCartItem(btn){
+  const el=btn.closest('.cart-item');
+  const all=Array.from(document.querySelectorAll('.cart-item'));
+  const idx=all.indexOf(el);
+  if(idx>-1 && window.cartData) window.cartData.splice(idx,1);
+  el.remove();
+  recalcCart();
+}
+
+// Lit le panier tel qu'affiché à l'écran (source de vérité pour le paiement)
+function getCartItems(){
+  return Array.from(document.querySelectorAll('.cart-item')).map(el=>{
+    const detail=(el.querySelector('.cart-item-detail').textContent||'').split(' · Taille ');
+    return {
+      name: el.querySelector('.cart-item-name').textContent.trim(),
+      color: (detail[0]||'').trim(),
+      size: (detail[1]||'').trim(),
+      price: parseFloat(el.querySelector('.cart-item-price').textContent)||0
+    };
+  });
+}
+
 async function stripePayment() {
   if(typeof Stripe === 'undefined') { alert('Stripe non disponible. Vérifiez votre connexion internet.'); return; }
   const fields = ['c-prenom','c-nom','c-email','c-adresse','c-ville','c-cp'];
@@ -1666,17 +1689,23 @@ async function stripePayment() {
   // Recalcule le total exact (même logique que calcShipping)
   const zObj = SHIPPING_ZONES[zone];
   const subtotalAfterDiscount = Math.max(0, currentSubtotal - discountAmount);
-  const totalAmount = subtotalAfterDiscount + zObj.price;
+  const totalAmount = Math.round((subtotalAfterDiscount + zObj.price) * 100) / 100;
+  const cartItems = getCartItems();
+  const promoInputEl = document.getElementById('promo-input');
+  const promoCodeUsed = (appliedPromo && promoInputEl && promoInputEl.value.trim()) ? promoInputEl.value.trim().toUpperCase() : null;
 
   try {
-    // 1. Créer le PaymentIntent côté serveur (montant validé server-side)
+    // 1. Créer le PaymentIntent côté serveur (le serveur recalcule le montant lui-même)
     const piRes = await fetch('/api/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: totalAmount, email })
+      body: JSON.stringify({ items: cartItems, promoCode: promoCodeUsed, email, province: zone })
     });
     const piData = await piRes.json();
     if (piData.error) throw new Error(piData.error);
+    if (Math.abs(piData.amount - totalAmount) > 0.01) {
+      throw new Error('Le total a changé. Rechargez la page et réessayez.');
+    }
 
     // 2. Confirmer le paiement avec la carte (le vrai débit se passe ici)
     const result = await stripe.confirmCardPayment(piData.clientSecret, {
@@ -1705,7 +1734,7 @@ async function stripePayment() {
     }
 
     // 3. Paiement réellement réussi — on enregistre la commande dans Supabase
-    const items = (window.cartData || []).map(i => ({ name: i.name, price: i.price, color: i.color, size: i.size }));
+    const items = cartItems;
     const promoInput = document.getElementById('promo-input');
 
     await fetch('/api/confirm-order', {
@@ -1720,7 +1749,7 @@ async function stripePayment() {
         subtotal: currentSubtotal,
         shippingCost: zObj.price,
         total: totalAmount,
-        promoCode: appliedPromo && promoInput ? promoInput.value : null,
+        promoCode: promoCodeUsed,
         province: zone
       })
     });
