@@ -358,6 +358,25 @@ nav.dark .logo-img{filter:invert(1);}
 }
 .swatch:hover{transform:scale(1.15);}
 .swatch.active{box-shadow:0 0 0 2px #fff,0 0 0 3px #0a0a0a;}
+.swatch.sold-out{
+  opacity:.35;cursor:not-allowed;pointer-events:none;position:relative;
+}
+.swatch.sold-out::after{
+  content:'';position:absolute;left:-2px;right:-2px;top:50%;
+  border-top:1px solid #0a0a0a;transform:rotate(-45deg);
+}
+.size-swatches{display:flex;gap:6px;margin:0 0 14px;}
+.size-chip{
+  border:1px solid #ddd;padding:5px 11px;background:#fff;
+  font-family:'Inter',sans-serif;font-size:.6rem;font-weight:500;
+  letter-spacing:.08em;cursor:none;transition:all .2s;
+}
+.size-chip:hover,.size-chip.active{background:#0a0a0a;color:#fff;border-color:#0a0a0a;}
+.size-chip.sold-out{
+  color:#ccc;border-color:#eee;text-decoration:line-through;
+  cursor:not-allowed;background:#fff;pointer-events:none;
+}
+.size-chip.sold-out:hover{background:#fff;color:#ccc;border-color:#eee;}
 .order-btn{
   background:#0a0a0a;color:#fff;border:none;
   padding:12px 28px;font-family:'Inter',sans-serif;
@@ -895,9 +914,8 @@ if(typeof google !== 'undefined') {
   const KEY = 'hk_access';
   
   function checkAccess(){
-    if(sessionStorage.getItem(KEY) === 'true'){
-      document.getElementById('pw-screen').classList.add('hidden');
-    }
+    // Protection par mot de passe désactivée — accès direct au site
+    document.getElementById('pw-screen').classList.add('hidden');
   }
   
   window.checkPw = function(){
@@ -1026,6 +1044,11 @@ if(typeof google !== 'undefined') {
           <span class="swatch" style="background:#fff;border:1px solid #ddd;" title="Blanc"></span>
           <span class="swatch" style="background:#888;" title="Gris"></span>
         </div>
+        <div class="size-swatches">
+          <button type="button" class="size-chip" data-size="S">S</button>
+          <button type="button" class="size-chip active" data-size="M">M</button>
+          <button type="button" class="size-chip" data-size="L">L</button>
+        </div>
         <button class="order-btn" onclick="addToCart('Hoodie','45')">Ajouter au panier</button>
       </div>
     </div>
@@ -1044,6 +1067,11 @@ if(typeof google !== 'undefined') {
           <span class="swatch active" style="background:#0a0a0a;" title="Noir"></span>
           <span class="swatch" style="background:#fff;border:1px solid #ddd;" title="Blanc"></span>
           <span class="swatch" style="background:#1a2744;" title="Navy Blue"></span>
+        </div>
+        <div class="size-swatches">
+          <button type="button" class="size-chip" data-size="S">S</button>
+          <button type="button" class="size-chip active" data-size="M">M</button>
+          <button type="button" class="size-chip" data-size="L">L</button>
         </div>
         <button class="order-btn" onclick="addToCart('HK Short 3Cs','75')">Ajouter au panier</button>
       </div>
@@ -1190,8 +1218,18 @@ document.querySelectorAll('.rv').forEach(el=>obs.observe(el));
 // --- COLOR SWATCHES ---
 document.querySelectorAll('.swatch').forEach(sw=>{
   sw.addEventListener('click',function(){
+    if(this.classList.contains('sold-out')) return;
     const card=this.closest('.product');
     card.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// --- SIZE SELECTION ---
+document.querySelectorAll('.size-chip').forEach(sz=>{
+  sz.addEventListener('click',function(){
+    const card=this.closest('.product');
+    card.querySelectorAll('.size-chip').forEach(s=>s.classList.remove('active'));
     this.classList.add('active');
   });
 });
@@ -1299,24 +1337,88 @@ if(checkoutClose) checkoutClose.addEventListener('click',()=>{
 
 }); // end DOMContentLoaded
 
+// --- GESTION DU STOCK ---
+// Le stock est géré directement dans Supabase (table "stock", case à cocher "available").
+// Aucune modification de code nécessaire pour marquer une taille/couleur épuisée.
+let STOCK = {};
+
+async function loadStockAndApply(){
+  try {
+    const res = await fetch('/api/get-stock');
+    const data = await res.json();
+    if(data && data.stock) STOCK = data.stock;
+  } catch(err) {
+    console.error('Impossible de charger le stock (tout est affiché comme disponible):', err);
+  }
+  applyStock();
+}
+
+function applyStock(){
+  document.querySelectorAll('.product').forEach(card=>{
+    const btn=card.querySelector('.order-btn');
+    const productName=btn ? (btn.getAttribute('onclick').match(/addToCart\('([^']+)'/)||[])[1] : null;
+    const stockForProduct=productName ? STOCK[productName] : null;
+
+    // Tailles
+    card.querySelectorAll('.size-chip').forEach(chip=>{
+      const size=chip.getAttribute('data-size');
+      const inStock = stockForProduct ? stockForProduct.sizes[size] !== false : true;
+      if(!inStock){
+        chip.classList.add('sold-out');
+        chip.classList.remove('active');
+        chip.disabled = true;
+        chip.title = 'Épuisé';
+      }
+    });
+    const activeChip = card.querySelector('.size-chip.active');
+    if(!activeChip){
+      const firstAvailable = card.querySelector('.size-chip:not(.sold-out)');
+      if(firstAvailable) firstAvailable.classList.add('active');
+    }
+
+    // Couleurs
+    card.querySelectorAll('.swatch').forEach(sw=>{
+      const colorName=sw.getAttribute('title');
+      const inStock = stockForProduct ? stockForProduct.colors[colorName] !== false : true;
+      if(!inStock){
+        sw.classList.add('sold-out');
+        sw.classList.remove('active');
+        sw.title = colorName + ' — Épuisé';
+      }
+    });
+    const activeSwatch = card.querySelector('.swatch.active');
+    if(!activeSwatch){
+      const firstAvailableSwatch = card.querySelector('.swatch:not(.sold-out)');
+      if(firstAvailableSwatch) firstAvailableSwatch.classList.add('active');
+    }
+  });
+}
+loadStockAndApply();
+
 // --- GLOBAL FUNCTIONS ---
 function addToCart(name, price){
-  // Get selected color
+  // Get selected color and size
   const cards=document.querySelectorAll('.product');
   let color='Noir';
+  let size='M';
   cards.forEach(card=>{
     const btn=card.querySelector('.order-btn');
     if(btn && btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(name)){
-      const active=card.querySelector('.swatch.active');
-      if(active) color=active.getAttribute('title')||'Noir';
+      const activeColor=card.querySelector('.swatch.active');
+      if(activeColor) color=activeColor.getAttribute('title')||'Noir';
+      const activeSize=card.querySelector('.size-chip.active');
+      if(activeSize) size=activeSize.getAttribute('data-size')||'M';
     }
   });
 
-  // Check if already in cart
-  const exists=window.cartData&&window.cartData.find(i=>i.name===name&&i.color===color);
+  if(document.querySelector('.size-chip.active.sold-out')){ return; }
+  if(document.querySelector('.swatch.active.sold-out')){ return; }
+
+  // Check if already in cart (même produit, même couleur ET même taille)
+  const exists=window.cartData&&window.cartData.find(i=>i.name===name&&i.color===color&&i.size===size);
   if(!exists){
     if(!window.cartData) window.cartData=[];
-    window.cartData.push({name,price,color});
+    window.cartData.push({name,price,color,size});
 
     // Sync to cart array
     const cartArr=window.cartData;
@@ -1334,7 +1436,7 @@ function addToCart(name, price){
     el.dataset.idx=cartArr.length-1;
     el.innerHTML=`<div class="cart-item-info">
       <p class="cart-item-name">${name}</p>
-      <p class="cart-item-detail">${color} · Taille M</p>
+      <p class="cart-item-detail">${color} · Taille ${size}</p>
     </div>
     <span class="cart-item-price">${price} CAD</span>
     <button class="cart-item-remove" onclick="this.closest('.cart-item').remove();recalcCart()">✕</button>`;
@@ -1477,9 +1579,23 @@ let stripe = null;
 let stripeElements = null;
 let stripeCardElement = null;
 
-function initStripe() {
+function initStripe(attempt) {
+  attempt = attempt || 0;
   if(stripe) return;
-  if(typeof Stripe === 'undefined') { console.log('Stripe not loaded'); return; }
+  if(typeof Stripe === 'undefined') {
+    if(attempt < 20) {
+      // La librairie Stripe n'est pas encore chargée — on réessaie pendant quelques secondes
+      setTimeout(function(){ initStripe(attempt + 1); }, 250);
+    } else {
+      console.log('Stripe not loaded');
+      const errEl = document.getElementById('stripe-error');
+      if(errEl) {
+        errEl.textContent = 'Le module de paiement n\'a pas pu se charger. Vérifiez votre connexion et rechargez la page.';
+        errEl.style.display = 'block';
+      }
+    }
+    return;
+  }
   stripe = Stripe('pk_live_51RsWl5EqJ7j02e7lrvqMl9Gw4rc39Qs64uqjjmlELrx7hrqVnJGNDkBUVWC21mX5O4d3yGTk4fsFlX7X2cQEJC8f00QOYxlEUn');
   stripeElements = stripe.elements({
     fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap' }]
@@ -1585,7 +1701,7 @@ async function stripePayment() {
     }
 
     // 3. Paiement réellement réussi — on enregistre la commande dans Supabase
-    const items = (window.cartData || []).map(i => ({ name: i.name, price: i.price, color: i.color }));
+    const items = (window.cartData || []).map(i => ({ name: i.name, price: i.price, color: i.color, size: i.size }));
     const promoInput = document.getElementById('promo-input');
 
     await fetch('/api/confirm-order', {
@@ -1790,9 +1906,8 @@ if(typeof google !== 'undefined') {
   const KEY = 'hk_access';
   
   function checkAccess(){
-    if(sessionStorage.getItem(KEY) === 'true'){
-      document.getElementById('pw-screen').classList.add('hidden');
-    }
+    // Protection par mot de passe désactivée — accès direct au site
+    document.getElementById('pw-screen').classList.add('hidden');
   }
   
   window.checkPw = function(){
@@ -1987,14 +2102,11 @@ if(typeof google !== 'undefined') {
 
       <!-- Taille -->
       <div class="order-section">
-        <span class="order-label">Taille</span>
+        <span class="order-label">Taille (Adulte)</span>
         <div class="size-grid">
-          <button class="size-btn" onclick="selectSize(this)">XS</button>
           <button class="size-btn selected" onclick="selectSize(this)">S</button>
           <button class="size-btn" onclick="selectSize(this)">M</button>
           <button class="size-btn" onclick="selectSize(this)">L</button>
-          <button class="size-btn" onclick="selectSize(this)">XL</button>
-          <button class="size-btn" onclick="selectSize(this)">XXL</button>
         </div>
       </div>
 
