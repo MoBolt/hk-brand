@@ -359,11 +359,16 @@ nav.dark .logo-img{filter:invert(1);}
 .swatch:hover{transform:scale(1.15);}
 .swatch.active{box-shadow:0 0 0 2px #fff,0 0 0 3px #0a0a0a;}
 .swatch.sold-out{
-  opacity:.35;cursor:not-allowed;pointer-events:none;position:relative;
+  cursor:not-allowed;pointer-events:none;position:relative;
+  box-shadow:0 0 0 1px #ddd;
+}
+.swatch.sold-out::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:rgba(255,255,255,.55);
 }
 .swatch.sold-out::after{
-  content:'';position:absolute;left:-2px;right:-2px;top:50%;
-  border-top:1px solid #0a0a0a;transform:rotate(-45deg);
+  content:'';position:absolute;left:-4px;right:-4px;top:50%;
+  border-top:2px solid #c0392b;transform:rotate(-45deg);
 }
 .size-swatches{display:flex;gap:6px;margin:0 0 14px;}
 .size-chip{
