@@ -783,7 +783,7 @@ document.querySelectorAll('.legal-overlay').forEach(overlay => {
 // Promo codes
 const PROMO_CODES = {
   'HKLAUNCH': { type: 'percent', value: 15, label: '15% de réduction' },
-  'HK10':     { type: 'fixed',   value: 10, label: '10$ de réduction' },
+  'HK10':     { type: 'percent', value: 10, label: '10% de réduction' },
   'HKVIP':    { type: 'percent', value: 20, label: '20% de réduction' },
 };
 
@@ -1685,6 +1685,7 @@ async function stripePayment() {
   const adresse = document.getElementById('c-adresse').value;
   const ville = document.getElementById('c-ville').value;
   const cp = document.getElementById('c-cp').value;
+  const telephone = (document.getElementById('c-tel') ? document.getElementById('c-tel').value : '').trim();
 
   // Recalcule le total exact (même logique que calcShipping)
   const zObj = SHIPPING_ZONES[zone];
@@ -1714,6 +1715,7 @@ async function stripePayment() {
         billing_details: {
           name: prenom + ' ' + nom,
           email: email,
+          phone: telephone || undefined,
           address: { line1: adresse, city: ville, postal_code: cp, country: 'CA' }
         }
       }
@@ -1744,6 +1746,7 @@ async function stripePayment() {
         paymentIntentId: result.paymentIntent.id,
         customerEmail: email,
         customerName: prenom + ' ' + nom,
+        customerPhone: telephone,
         shippingAddress: { adresse, ville, cp, province: zone },
         items,
         subtotal: currentSubtotal,
@@ -1803,7 +1806,7 @@ document.querySelectorAll('.legal-overlay').forEach(overlay => {
 // Promo codes
 const PROMO_CODES = {
   'HKLAUNCH': { type: 'percent', value: 15, label: '15% de réduction' },
-  'HK10':     { type: 'fixed',   value: 10, label: '10$ de réduction' },
+  'HK10':     { type: 'percent', value: 10, label: '10% de réduction' },
   'HKVIP':    { type: 'percent', value: 20, label: '20% de réduction' },
 };
 
@@ -2259,7 +2262,7 @@ if(typeof google !== 'undefined') {
     <p class="legal-date">En vigueur depuis le 1er octobre 2026</p>
     <div class="legal-section">
       <h3>Informations collectées</h3>
-      <p>Lors d'une commande, nous collectons votre nom, adresse email, adresse de livraison et informations de paiement. Les informations de carte sont traitées directement par Stripe et ne sont jamais stockées sur nos serveurs.</p>
+      <p>Lors d'une commande, nous collectons votre nom, adresse email, numéro de téléphone, adresse de livraison et informations de paiement. Les informations de carte sont traitées directement par Stripe et ne sont jamais stockées sur nos serveurs.</p>
     </div>
     <div class="legal-section">
       <h3>Utilisation des données</h3>
