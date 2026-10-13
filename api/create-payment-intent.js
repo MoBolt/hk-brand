@@ -26,7 +26,7 @@ const SHIPPING = 10;
 
 const PROMOS = {
   'HKLAUNCH': { type: 'percent', value: 15 },
-  'HK10':     { type: 'fixed',   value: 10 },
+  'HK10':     { type: 'percent', value: 10 },
   'HKVIP':    { type: 'percent', value: 20 }
 };
 
