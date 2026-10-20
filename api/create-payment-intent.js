@@ -14,7 +14,7 @@ const supabaseAdmin = createClient(
 // Prix officiels (CAD). Pour changer un prix, modifie-le ICI (et dans index.html pour l'affichage).
 const PRICES = {
   'Hoodie': 45,
-  'HK Short 3Cs': 75
+  'HK Short 3Cs': 70
 };
 
 // Produit de test : n'existe que si la variable Vercel ENABLE_TEST_PRODUCT vaut "true".
